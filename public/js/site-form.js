@@ -9,6 +9,12 @@
     document.querySelectorAll('[data-section]').forEach(function (el) {
       el.hidden = el.getAttribute('data-section') !== v;
     });
+    // Double-verify only makes sense for active probes — heartbeat is a
+    // passive monitor (the service pings us) so retry-on-failure has
+    // nothing to retry.
+    document.querySelectorAll('[data-double-verify-row]').forEach(function (el) {
+      el.hidden = v === 'heartbeat';
+    });
   }
 
   function syncCheckType() {

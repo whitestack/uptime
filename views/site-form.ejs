@@ -588,6 +588,17 @@
       </label>
       <div class="form-hint">Stops scheduled checks (and accepted heartbeats) without deleting the monitor.</div>
     </div>
+    <div class="mt-3" data-double-verify-row<%= site.monitor_type === 'heartbeat' ? ' hidden' : '' %>>
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="double_verify" value="1" <%= site.double_verify ? 'checked' : '' %>>
+        <span class="form-check-label">Double-verify on failure</span>
+      </label>
+      <div class="form-hint">
+        When a check fails, retry once 2 seconds later before counting the failure.
+        Avoids false alerts from transient packet loss, DNS hiccups, or upstream blips.
+        Doesn't apply to heartbeats (the service pings us).
+      </div>
+    </div>
   </div>
 
   <div class="card-body border-top">

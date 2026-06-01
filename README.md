@@ -28,7 +28,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 
 ![Bulk pause, resume, delete and tag actions across many monitors](docs/screenshots/dashboard-bulk-actions.png)
 
-**Add a monitor** — HTTP / TCP / ping / DNS / cert / domain / heartbeat in one form. Status / body-string / JSON-path / regex assertions, optional response-time threshold, per-monitor failure threshold, Cloudflare-aware mode, custom headers, tags, channels, and (for admins) per-monitor ownership.
+**Add a monitor** — HTTP / TCP / ping / DNS / cert / domain / heartbeat in one form. Status / body-string / JSON-path / regex assertions, optional response-time threshold, per-monitor failure threshold, double-verify retry on failure, Cloudflare-aware mode, custom headers, tags, channels, and (for admins) per-monitor ownership.
 
 ![New monitor form with assertions, headers, tags and channel selection](docs/screenshots/monitor-form.png)
 
@@ -92,6 +92,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 | **Domain WHOIS / RDAP expiry monitor** | **Yes (dedicated type, RDAP → WHOIS fallback, IANA bootstrap)** | No | No | No | No | Yes (basic) | No |
 | **Passive heartbeats (cron)**| Yes (start/success/fail + cron schedule + body capture) | Yes (basic) | **Yes (best in class)** | No | No | Yes | Yes |
 | **Cloudflare-aware probing** | **Yes (UA rotation, challenge detection, adaptive backoff)** | No | No | No | No | — | No |
+| **Double-verify on failure (per monitor)** | **Yes (2-second retry, applies to every active probe type)** | No (interval/threshold only) | No (threshold only) | No | No | Yes (Uptime Robot calls it "Confirmation") | No |
 | **Status assertions**        | Status / body-string / JSON path / regex / response-time | Status / keyword | Pass/fail token | YAML conditions | Status / contains | Status / keyword | Status |
 | **Notification channels**    | **10** (Discord, Slack, Telegram, Ntfy, Gotify, Pushover, Mattermost, Teams, email, webhook) | 90+ | 30+ | Most via shoutrrr | 13 | 20+ | Many |
 | **Per-event message templates** | Yes (`{{placeholders}}`, reset-to-default) | Limited | Yes | Yes | No | Yes | Yes |
@@ -135,6 +136,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 
 ### Probe controls (per monitor)
 - **Failure threshold (anti-flap)** — fire DOWN only after N consecutive failed checks. Default `1`.
+- **Double-verify on failure (per monitor)** — opt-in safety net. When a check fails, retry exactly once 2 seconds later. Only if the retry *also* fails does the failure count toward `failure_threshold`. Applies to every active probe type (HTTP / TCP / ping / DNS / cert / domain). Catches transient drops — DNS hiccups, packet loss, upstream blips, Cloudflare flapping — without delaying real DOWN alerts the way a longer interval would.
 - **Request body** — POST / PUT / PATCH / DELETE with `text` / `json` / `form` type — Content-Type set automatically.
 - **Authentication** — first-class Basic auth (username / password) or Bearer token.
 - **Follow redirects** — 0 or up to 5 hops (`undici` `maxRedirections`).
@@ -476,7 +478,7 @@ PLAN.md                  feature roadmap with shipped/deferred per phase
 
 ## Keywords
 
-self-hosted uptime monitor, open source uptime monitor, Uptime Kuma alternative, Healthchecks.io alternative, Gatus alternative, Statping alternative, Better Stack alternative, Node.js uptime monitor, Express uptime monitor, SQLite uptime monitor, MySQL uptime monitor, free uptime monitor, MIT uptime monitor, website monitor, HTTP monitor, TCP monitor, ICMP ping monitor, DNS monitor, TLS certificate monitor, SSL expiry monitor, domain expiry monitor, WHOIS monitor, RDAP monitor, domain renewal alert, cron monitor, heartbeat monitor, Healthchecks.io self-hosted, Discord notifications, Slack notifications, Telegram notifications, Ntfy notifications, Gotify notifications, Pushover notifications, Mattermost notifications, Microsoft Teams notifications, generic webhook notifications, Prometheus uptime exporter, Grafana uptime dashboard, Cloudflare-aware monitoring, public status page, RSS status feed, maintenance windows, REST API uptime, audit log, TOTP 2FA, per-monitor ACL, multi-user uptime monitor, role-based access control, PM2 nginx deployment.
+self-hosted uptime monitor, open source uptime monitor, double-verify uptime check, retry on failure uptime, anti-flap monitor, false positive prevention uptime, Uptime Kuma alternative, Healthchecks.io alternative, Gatus alternative, Statping alternative, Better Stack alternative, Node.js uptime monitor, Express uptime monitor, SQLite uptime monitor, MySQL uptime monitor, free uptime monitor, MIT uptime monitor, website monitor, HTTP monitor, TCP monitor, ICMP ping monitor, DNS monitor, TLS certificate monitor, SSL expiry monitor, domain expiry monitor, WHOIS monitor, RDAP monitor, domain renewal alert, cron monitor, heartbeat monitor, Healthchecks.io self-hosted, Discord notifications, Slack notifications, Telegram notifications, Ntfy notifications, Gotify notifications, Pushover notifications, Mattermost notifications, Microsoft Teams notifications, generic webhook notifications, Prometheus uptime exporter, Grafana uptime dashboard, Cloudflare-aware monitoring, public status page, RSS status feed, maintenance windows, REST API uptime, audit log, TOTP 2FA, per-monitor ACL, multi-user uptime monitor, role-based access control, PM2 nginx deployment.
 
 ---
 

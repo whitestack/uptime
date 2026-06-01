@@ -374,13 +374,64 @@ async function runDomainCheck(site) {
   }
 }
 
-async function runCheck(site) {
-  const log = logger.child({ siteId: site.id, siteName: site.name });
+// Delay between the first failed probe and the double-verify retry. Short
+// enough that the next scheduled tick isn't impacted (intervals start at
+// 10s for HTTP) and long enough to let an upstream blip resolve.
+const DOUBLE_VERIFY_DELAY_MS = 2000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Internal — runs exactly one probe pass for the given site. `runCheck`
+// is the public entry point and may layer double-verify retries on top.
+async function runSingleProbe(site) {
   if (site.monitor_type === 'cert') return runCertCheck(site);
   if (site.monitor_type === 'tcp') return runTcpCheck(site);
   if (site.monitor_type === 'ping') return runPingCheck(site);
   if (site.monitor_type === 'dns') return runDnsCheck(site);
   if (site.monitor_type === 'domain') return runDomainCheck(site);
+  return runActiveProbe(site);
+}
+
+async function runCheck(site) {
+  const log = logger.child({ siteId: site.id, siteName: site.name });
+  const first = await runSingleProbe(site);
+
+  // Double-verify rules:
+  //   - only retry when explicitly enabled per-monitor
+  //   - only retry on a *definite* failure (isUp === 0). Domain monitors
+  //     return isUp:null for redacted/unknown registries; that's already
+  //     graceful, no reason to retry.
+  //   - never retry a Cloudflare challenge (it's already "inconclusive"
+  //     and the cloudflare module has its own adaptive backoff path)
+  if (!site.double_verify) return first;
+  if (first.isUp !== 0) return first;
+  if (first.challenged) return first;
+
+  log.info({ firstError: first.errorMessage }, 'check.double_verify.retrying');
+  await sleep(DOUBLE_VERIFY_DELAY_MS);
+  const second = await runSingleProbe(site);
+
+  if (second.isUp === 1) {
+    log.info(
+      { firstError: first.errorMessage, secondResponseMs: second.responseTimeMs },
+      'check.double_verify.rescued'
+    );
+    return { ...second, doubleVerifyRescued: true };
+  }
+
+  log.info(
+    { firstError: first.errorMessage, secondError: second.errorMessage },
+    'check.double_verify.confirmed_down'
+  );
+  // Keep the original failure result so the recorded error message
+  // describes the first (presumably actionable) failure, not the retry.
+  return { ...first, doubleVerifyConfirmed: true };
+}
+
+async function runActiveProbe(site) {
+  const log = logger.child({ siteId: site.id, siteName: site.name });
   const checkType = site.check_type || 'status';
   // HEAD probe is only valid when we don't need the response body. Any
   // assertion against the body (string / json) requires GET.

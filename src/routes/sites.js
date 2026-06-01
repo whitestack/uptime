@@ -51,6 +51,7 @@ function buildPayload(body) {
   const heartbeat_grace_seconds = Math.max(5, parseInt(body.heartbeat_grace_seconds, 10) || 60);
   const cloudflare_mode = body.cloudflare_mode === '1' || body.cloudflare_mode === 'on' ? 1 : 0;
   const paused = body.paused === '1' || body.paused === 'on' ? 1 : 0;
+  const double_verify = body.double_verify === '1' || body.double_verify === 'on' ? 1 : 0;
   const rawMethod = String(body.method || 'GET').toUpperCase();
   const method = VALID_METHODS.includes(rawMethod) ? rawMethod : 'GET';
   const check_type = VALID_CHECK_TYPES.includes(body.check_type) ? body.check_type : 'status';
@@ -174,6 +175,7 @@ function buildPayload(body) {
     heartbeat_grace_seconds,
     cloudflare_mode,
     paused,
+    double_verify,
     display_name,
     status_page_group,
     status_page_excluded,
@@ -455,6 +457,7 @@ router.get('/sites/new', acl.requireRole('admin', 'editor'), async (req, res, ne
         expected_status: '200',
         cloudflare_mode: 0,
         paused: 0,
+        double_verify: 0,
         owner_user_id: req.session.user?.id || null,
       },
       allChannels,
@@ -490,7 +493,7 @@ router.post('/sites', acl.requireRole('admin', 'editor'), async (req, res, next)
          (name, url, monitor_type, method, interval_seconds, timeout_ms,
           check_type, expected_status, expected_string, json_path, expected_json_value,
           request_headers, failure_threshold, heartbeat_token, heartbeat_grace_seconds,
-          cloudflare_mode, paused,
+          cloudflare_mode, paused, double_verify,
           display_name, status_page_group, status_page_excluded, status_page_order,
           cert_expiry_warn_days, cert_host, cert_port,
           tcp_host, tcp_port, ping_host, ping_count,
@@ -501,13 +504,13 @@ router.post('/sites', acl.requireRole('admin', 'editor'), async (req, res, next)
           auth_type, auth_username, auth_password, auth_token,
           follow_redirects, skip_tls_verify, max_response_time_ms,
           notes, mute_notifications, owner_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name, data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
         data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
         data.request_headers ? JSON.stringify(data.request_headers) : null,
         data.failure_threshold, heartbeat_token, data.heartbeat_grace_seconds,
-        data.cloudflare_mode, data.paused,
+        data.cloudflare_mode, data.paused, data.double_verify,
         data.display_name, data.status_page_group, data.status_page_excluded, data.status_page_order,
         data.cert_expiry_warn_days, data.cert_host, data.cert_port,
         data.tcp_host, data.tcp_port, data.ping_host, data.ping_count,
@@ -653,7 +656,7 @@ router.post('/sites/:id/edit', acl.requireSiteManage, async (req, res, next) => 
          name=?, url=?, monitor_type=?, method=?, interval_seconds=?, timeout_ms=?,
          check_type=?, expected_status=?, expected_string=?, json_path=?, expected_json_value=?,
          request_headers=?, failure_threshold=?, heartbeat_grace_seconds=?,
-         cloudflare_mode=?, paused=?,
+         cloudflare_mode=?, paused=?, double_verify=?,
          display_name=?, status_page_group=?, status_page_excluded=?, status_page_order=?,
          cert_expiry_warn_days=?, cert_host=?, cert_port=?,
          tcp_host=?, tcp_port=?, ping_host=?, ping_count=?,
@@ -670,7 +673,7 @@ router.post('/sites/:id/edit', acl.requireSiteManage, async (req, res, next) => 
         data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
         data.request_headers ? JSON.stringify(data.request_headers) : null,
         data.failure_threshold, data.heartbeat_grace_seconds,
-        data.cloudflare_mode, data.paused,
+        data.cloudflare_mode, data.paused, data.double_verify,
         data.display_name, data.status_page_group, data.status_page_excluded, data.status_page_order,
         data.cert_expiry_warn_days, data.cert_host, data.cert_port,
         data.tcp_host, data.tcp_port, data.ping_host, data.ping_count,

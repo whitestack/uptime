@@ -22,6 +22,9 @@
         <% if (site.mute_notifications) { %>
           <span class="badge bg-warning-lt" title="Probe runs but no alerts fire"><i class="ti ti-bell-off me-1"></i>muted</span>
         <% } %>
+        <% if (site.double_verify && site.monitor_type !== 'heartbeat') { %>
+          <span class="badge bg-info-lt" title="A failed check is retried once after 2s before counting as down."><i class="ti ti-refresh-dot me-1"></i>double-verify</span>
+        <% } %>
         <% if (typeof siteTags !== 'undefined' && siteTags.length) { %>
           <% siteTags.forEach(function(t) { %>
             <a href="/?tag=<%= t.id %>" class="text-decoration-none" onclick="event.stopPropagation();">

@@ -594,6 +594,15 @@ async function run() {
   await addColumn('sites', 'domain_last_checked_at',   'TEXT NULL',                  'DATETIME(3) NULL');
   await addColumn('sites', 'domain_alerted_at_days',   'INTEGER NULL',               'INT NULL');
 
+  // Phase 16 — Per-monitor "double verify on failure" toggle.
+  // When 1, a failed active probe (HTTP / TCP / Ping / DNS / Cert / Domain)
+  // is retried once after a short delay before the failure is reported up
+  // to processResult. This catches transient drops (DNS hiccups, packet
+  // loss, momentary upstream blips) that resolve in seconds and avoids
+  // false-positive DOWN alerts. Independent of `failure_threshold`, which
+  // counts failures across separate scheduled cycles.
+  await addColumn('sites', 'double_verify',             'INTEGER NOT NULL DEFAULT 0', 'TINYINT(1) NOT NULL DEFAULT 0');
+
   // Binary uploads (logo / favicon). Stored inline rather than on disk so
   // backup/import is a single JSON file and there are no FS perms to worry
   // about. One row per `kind` ("logo" | "favicon"). updated_at drives the

@@ -13,7 +13,7 @@ const SITE_EXPORT_FIELDS = [
   'name', 'url', 'monitor_type', 'method', 'interval_seconds', 'timeout_ms',
   'check_type', 'expected_status', 'expected_string', 'json_path', 'expected_json_value',
   'request_headers', 'failure_threshold', 'heartbeat_token', 'heartbeat_grace_seconds',
-  'cloudflare_mode', 'paused',
+  'cloudflare_mode', 'paused', 'double_verify',
 ];
 
 const VALID_MONITOR_TYPES = ['active', 'heartbeat'];
@@ -32,7 +32,7 @@ function normalizeSiteRow(row) {
       }
       if (!v || typeof v !== 'object' || Array.isArray(v)) v = null;
     }
-    if (f === 'cloudflare_mode' || f === 'paused') v = v ? 1 : 0;
+    if (f === 'cloudflare_mode' || f === 'paused' || f === 'double_verify') v = v ? 1 : 0;
     if (v === undefined) v = null;
     out[f] = v;
   }
@@ -207,6 +207,7 @@ function sanitizeImportSite(raw) {
     heartbeat_grace_seconds: Math.max(5, parseInt(raw.heartbeat_grace_seconds, 10) || 60),
     cloudflare_mode: raw.cloudflare_mode ? 1 : 0,
     paused: raw.paused ? 1 : 0,
+    double_verify: raw.double_verify ? 1 : 0,
     channels: channelNames,
   };
 }
@@ -281,14 +282,14 @@ async function insertSite(data, channelIds) {
        (name, url, monitor_type, method, interval_seconds, timeout_ms,
         check_type, expected_status, expected_string, json_path, expected_json_value,
         request_headers, failure_threshold, heartbeat_token, heartbeat_grace_seconds,
-        cloudflare_mode, paused)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cloudflare_mode, paused, double_verify)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.name, data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
       data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
       data.request_headers ? JSON.stringify(data.request_headers) : null,
       data.failure_threshold, token, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused,
+      data.cloudflare_mode, data.paused, data.double_verify,
     ]
   );
   const id = Number(result.insertId);
@@ -302,14 +303,14 @@ async function updateSiteRow(id, data, channelIds) {
        url=?, monitor_type=?, method=?, interval_seconds=?, timeout_ms=?,
        check_type=?, expected_status=?, expected_string=?, json_path=?, expected_json_value=?,
        request_headers=?, failure_threshold=?, heartbeat_grace_seconds=?,
-       cloudflare_mode=?, paused=?
+       cloudflare_mode=?, paused=?, double_verify=?
      WHERE id=?`,
     [
       data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
       data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
       data.request_headers ? JSON.stringify(data.request_headers) : null,
       data.failure_threshold, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused, id,
+      data.cloudflare_mode, data.paused, data.double_verify, id,
     ]
   );
   if (data.monitor_type === 'heartbeat') {

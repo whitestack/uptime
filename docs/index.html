@@ -7,7 +7,7 @@
   <title>Uptime — self-hosted open-source uptime monitor in Node.js</title>
 
   <meta name="description" content="Self-hosted, MIT-licensed uptime monitor in Node.js with HTTP, TCP, ping, DNS, TLS cert, domain WHOIS / RDAP expiry, and heartbeat probes. 10 notification channels, public status page, multi-user ACLs, REST API, and Prometheus exporter. A lightweight alternative to Uptime Kuma, Healthchecks.io, Gatus, Statping, and Better Stack.">
-  <meta name="keywords" content="uptime monitor, self-hosted uptime monitor, open source uptime monitor, Uptime Kuma alternative, Healthchecks.io alternative, Gatus alternative, Statping alternative, Better Stack alternative, Node.js uptime monitor, SQLite uptime monitor, MySQL uptime monitor, website monitor, HTTP monitor, TLS certificate monitor, SSL expiry monitor, domain expiry monitor, WHOIS monitor, RDAP monitor, domain renewal alert, heartbeat monitor, cron monitor, Cloudflare-aware monitoring, Discord uptime notifications, Slack uptime alerts, Prometheus uptime exporter, public status page">
+  <meta name="keywords" content="uptime monitor, self-hosted uptime monitor, open source uptime monitor, double-verify uptime check, retry on failure monitor, anti-flap, false positive alert prevention, Uptime Kuma alternative, Healthchecks.io alternative, Gatus alternative, Statping alternative, Better Stack alternative, Node.js uptime monitor, SQLite uptime monitor, MySQL uptime monitor, website monitor, HTTP monitor, TLS certificate monitor, SSL expiry monitor, domain expiry monitor, WHOIS monitor, RDAP monitor, domain renewal alert, heartbeat monitor, cron monitor, Cloudflare-aware monitoring, Discord uptime notifications, Slack uptime alerts, Prometheus uptime exporter, public status page">
   <meta name="author" content="CodeWiz">
   <meta name="theme-color" content="#0f1722">
 
@@ -217,6 +217,10 @@
         <h3><span class="num">07</span> Domain WHOIS / RDAP expiry as a first-class monitor</h3>
         <p>Catch a forgotten registrar renewal <em>before</em> the domain falls off the internet. The probe queries <a href="https://www.rfc-editor.org/rfc/rfc7480" target="_blank" rel="noopener">RDAP</a> first via the IANA bootstrap registry (structured JSON), falls back to WHOIS over TCP/43 with multi-pattern parsing, stores <code>expires_at</code> / <code>registrar</code> / EPP <code>status</code>, and fires <code>domain_expiring</code> at 30/14/7/3/1/0-day bands — no nagging. Returns <em>unknown</em> for redacted TLDs instead of false-flagging DOWN. Uptime Kuma, Gatus, Statping, and Healthchecks all skip this.</p>
       </div>
+      <div class="unique-card">
+        <h3><span class="num">08</span> Per-monitor double-verify on failure</h3>
+        <p>When a probe fails, retry it once 2 seconds later before counting the failure. If the retry succeeds, the monitor stays UP and no alert fires — that single dropped TCP packet, DNS hiccup, or upstream blip never wakes you up. If the retry also fails, the failure flows through <code>failure_threshold</code> exactly as before. Per-monitor toggle, applies to every active probe type (HTTP / TCP / ping / DNS / cert / domain), invisible to the dashboard when it works. Same idea as Uptime Robot's "Confirmation" feature — Uptime Kuma, Gatus, Statping, and Healthchecks all skip this.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -317,6 +321,7 @@
           <tr><th>Domain WHOIS / RDAP expiry</th>              <td class="us yes">Dedicated type (RDAP→WHOIS)</td><td>No</td><td>No</td>     <td>No</td>  <td>No</td>      <td>Basic</td></tr>
           <tr><th>Heartbeats with cron + body capture</th>     <td class="us yes">Yes</td>    <td>Basic</td>     <td>Best in class</td>      <td>No</td>  <td>No</td>      <td>Yes</td></tr>
           <tr><th>Cloudflare-aware probing</th>                <td class="us yes">Yes</td>    <td>No</td>        <td>No</td>                 <td>No</td>  <td>No</td>      <td>—</td></tr>
+          <tr><th>Double-verify on failure (per monitor)</th>  <td class="us yes">Yes (2s retry, all probe types)</td><td>No</td><td>No</td><td>No</td>  <td>No</td>      <td>Yes ("Confirmation")</td></tr>
           <tr><th>Notification channels</th>                   <td class="us">10</td>        <td>90+</td>       <td>30+</td>                <td>Via shoutrrr</td><td>13</td><td>20+</td></tr>
           <tr><th>Public status page + RSS</th>                <td class="us yes">Yes</td>    <td>Yes</td>       <td>No</td>                 <td>Yes</td> <td>Yes</td>     <td>Yes</td></tr>
           <tr><th>Multi-user with per-monitor ACLs</th>        <td class="us yes">Yes</td>    <td>Coming</td>    <td>Teams only</td>         <td>No</td>  <td>Limited</td> <td>Yes</td></tr>
