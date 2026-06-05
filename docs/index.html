@@ -153,7 +153,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1m18-1v-7a2 2 0 0 0-2-2h-8.5a2 2 0 0 0-1.41.58L5.59 9.59A2 2 0 0 0 5 11v6a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2z"/></svg>
         </div>
         <h3>REST API + Prometheus</h3>
-        <p>Token-authenticated <code>/api/v1/*</code> with <code>read</code> / <code>write</code> scopes — every endpoint ACL-filtered through the token owner. Built-in <code>/metrics</code> Prometheus exporter for Grafana, also ACL-aware.</p>
+        <p>Token-authenticated <code>/api/v1/*</code> with <code>read</code> / <code>write</code> scopes — every endpoint ACL-filtered through the token owner. <strong>Full monitor CRUD via JSON</strong> — <code>POST /sites</code> creates any of the 7 monitor types, <code>PATCH /sites/:id</code> does partial updates, plus pause / resume / delete / check-now. Built-in <code>/metrics</code> Prometheus exporter for Grafana, also ACL-aware.</p>
       </article>
 
       <article class="feature">
@@ -325,7 +325,7 @@
           <tr><th>Notification channels</th>                   <td class="us">10</td>        <td>90+</td>       <td>30+</td>                <td>Via shoutrrr</td><td>13</td><td>20+</td></tr>
           <tr><th>Public status page + RSS</th>                <td class="us yes">Yes</td>    <td>Yes</td>       <td>No</td>                 <td>Yes</td> <td>Yes</td>     <td>Yes</td></tr>
           <tr><th>Multi-user with per-monitor ACLs</th>        <td class="us yes">Yes</td>    <td>Coming</td>    <td>Teams only</td>         <td>No</td>  <td>Limited</td> <td>Yes</td></tr>
-          <tr><th>REST API + Prometheus exporter</th>          <td class="us yes">Both (ACL-filtered)</td><td>Limited</td><td>API only</td><td>Read-only</td><td>API only</td><td>API only</td></tr>
+          <tr><th>REST API + Prometheus exporter</th>          <td class="us yes">Both (ACL-filtered, full CRUD)</td><td>Limited</td><td>API only</td><td>Read-only</td><td>API only</td><td>API only</td></tr>
           <tr><th>Audit log per actor</th>                     <td class="us yes">Yes</td>    <td>No</td>        <td>No</td>                 <td>No</td>  <td>No</td>      <td>Yes</td></tr>
           <tr><th>Login rate-limit + lockout</th>              <td class="us yes">Yes</td>    <td>No</td>        <td>Yes</td>                <td>No</td>  <td>No</td>      <td>Yes</td></tr>
           <tr><th>Dark mode by default</th>                    <td class="us yes">Yes</td>    <td>Yes</td>       <td>Yes</td>                <td>No</td>  <td>No</td>      <td>Yes</td></tr>

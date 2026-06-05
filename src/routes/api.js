@@ -10,7 +10,9 @@ const apiTokens = require('../lib/apiTokens');
 const users = require('../lib/users');
 const acl = require('../lib/acl');
 const logger = require('../logger');
+const audit = require('../lib/audit');
 const { parseId } = require('../lib/ids');
+const sitePayload = require('../lib/sitePayload');
 
 const router = express.Router();
 
@@ -276,6 +278,123 @@ router.get('/api/v1/stats', requireApi('read'), async (req, res, next) => {
 });
 
 // ─── WRITE endpoints ─────────────────────────────────────────────────────
+
+// Wraps an Error message so the JSON error body never leaks an SQL stack
+// trace or other internal detail. Keeps the {error, details?} shape stable.
+function jsonError(res, status, message, details) {
+  const body = { error: message };
+  if (details) body.details = details;
+  return res.status(status).json(body);
+}
+
+// POST /api/v1/sites — create monitor of any type.
+// Required scope: write. Role: admin OR editor (env-admin token bypasses).
+// Body fields mirror the form-submit names so a single sitePayload helper
+// drives both create paths. Returns 201 + the freshly-loaded site DTO.
+router.post('/api/v1/sites', requireApi('write'), async (req, res, next) => {
+  try {
+    if (!acl.isEditor(req.apiUser)) {
+      return jsonError(res, 403, 'role must be admin or editor');
+    }
+    const body = req.body || {};
+    let data;
+    try {
+      data = sitePayload.buildPayload(body);
+    } catch (err) {
+      // parseHeadersJson throws when request_headers isn't a valid object.
+      return jsonError(res, 400, err.message);
+    }
+    const errors = sitePayload.validateForApi(data, body);
+    if (errors.length) {
+      return jsonError(res, 400, 'validation failed', errors);
+    }
+    const channelIds = sitePayload.pickChannelIds(body);
+    const tagIds = sitePayload.pickTagIds(body);
+    // Ownership: env-admin and admins can pick any owner; everyone else gets
+    // their own user id (so future editors automatically have manage).
+    let ownerUserId = req.apiUser.isEnv ? null : (req.apiUser.id || null);
+    if (acl.isAdmin(req.apiUser)
+        && Object.prototype.hasOwnProperty.call(body, 'owner_user_id')) {
+      const raw = parseId(body.owner_user_id);
+      ownerUserId = raw != null ? raw : null;
+    }
+    const { id, site } = await sitePayload.insertSite(data, { channelIds, tagIds, ownerUserId });
+    await audit.record({
+      actor: req.apiUser.username || null,
+      actorUserId: req.apiUser.isEnv ? null : req.apiUser.id,
+      ip: req.ip || null,
+      action: 'site.created',
+      targetType: 'site',
+      targetId: id,
+      meta: { name: data.name, monitor_type: data.monitor_type, via: 'api' },
+    });
+    logger.info({ siteId: id, name: data.name, monitor_type: data.monitor_type, via: 'api' }, 'sites.created');
+    await monitor.reloadSite(id);
+    res.status(201).json(siteToApi(site));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/v1/sites/:id — partial update.
+// Required scope: write. ACL: manage permission on the target site.
+// Merges req.body over the existing row before normalizing, so callers can
+// flip a single field (e.g. {"paused": true}) without resending the whole
+// monitor. Returns 200 + the updated site DTO.
+router.patch('/api/v1/sites/:id', requireApi('write'), async (req, res, next) => {
+  try {
+    const existing = await loadSiteWithAccess(req, res, 'manage');
+    if (!existing) return;
+    // Build the merged body: existing row values fill in anything the caller
+    // didn't send. Boolean / number / string coercion is handled downstream
+    // by buildPayload, which already deals with row-shaped (0/1, NULL) and
+    // JSON-shaped (true/false, null) inputs.
+    const body = req.body || {};
+    const merged = { ...existing, ...body };
+    let data;
+    try {
+      data = sitePayload.buildPayload(merged);
+    } catch (err) {
+      return jsonError(res, 400, err.message);
+    }
+    // Validate using the raw patch body (not the merged) so we only complain
+    // about values the caller actually sent — the existing row is trusted.
+    const errors = sitePayload.validateForApi(data, body);
+    if (errors.length) {
+      return jsonError(res, 400, 'validation failed', errors);
+    }
+    const opts = {};
+    if (Object.prototype.hasOwnProperty.call(body, 'channel_ids')) {
+      opts.channelIds = sitePayload.pickChannelIds(body);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'tag_ids')) {
+      opts.tagIds = sitePayload.pickTagIds(body);
+    }
+    // Owner reassignment is admin-only — same rule as the form route.
+    if (acl.isAdmin(req.apiUser)
+        && Object.prototype.hasOwnProperty.call(body, 'owner_user_id')) {
+      opts.ownerUserIdProvided = true;
+      const raw = parseId(body.owner_user_id);
+      opts.ownerUserId = raw != null ? raw : null;
+    }
+    const updated = await sitePayload.updateSite(existing.id, data, opts);
+    await audit.record({
+      actor: req.apiUser.username || null,
+      actorUserId: req.apiUser.isEnv ? null : req.apiUser.id,
+      ip: req.ip || null,
+      action: 'site.updated',
+      targetType: 'site',
+      targetId: existing.id,
+      meta: { name: data.name, via: 'api' },
+    });
+    logger.info({ siteId: existing.id, name: data.name, via: 'api' }, 'sites.updated');
+    await monitor.reloadSite(existing.id);
+    res.json(siteToApi(updated));
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/api/v1/sites/:id/pause', requireApi('write'), async (req, res, next) => {
   try {
     const site = await loadSiteWithAccess(req, res, 'manage');

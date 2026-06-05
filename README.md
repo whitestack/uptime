@@ -199,7 +199,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 - **Claim-unowned button** — new DB admin can take ownership of legacy monitors with one click.
 
 ### REST API & metrics
-- Bearer-token authenticated REST under `/api/v1/` with `read` / `write` scopes (admins create them at `/settings/api-tokens`; users mint personal ones at `/settings/account`).
+- Bearer-token authenticated REST under `/api/v1/` with `read` / `write` scopes (admins create them at `/settings/api-tokens`; users mint personal ones at `/settings/account`). **Full CRUD for monitors via JSON** — `POST /api/v1/sites` creates monitors of any of the 7 types, `PATCH /api/v1/sites/:id` does partial updates, `DELETE /api/v1/sites/:id` removes them, plus the existing pause / resume / check-now write actions. Strict per-type validation, ACL inheritance, owner-only ownership reassignment.
 - Endpoints: `health`, `sites`, `sites/:id`, `sites/:id/checks`, `sites/:id/incidents`, `incidents`, `tags`, `stats`, plus `pause` / `resume` / `check-now` / `DELETE` on a site.
 - Every `/api/v1` response is filtered through the token owner's ACL, so non-admins can only see / act on monitors they have access to.
 - **Prometheus exporter** at `/metrics` — series for `uptime_monitor_up`, `uptime_monitor_response_time_ms`, `uptime_monitor_last_check_age_seconds`, `uptime_monitor_uptime_pct_24h`, `uptime_cert_days_remaining`, `uptime_domain_days_remaining` (registered-domain WHOIS / RDAP expiry, emitted for `domain` monitors), `uptime_monitors_total{state}`, `uptime_open_incidents`. Public until the first API token is created; token-gated thereafter and ACL-filtered.
@@ -377,12 +377,72 @@ Create a token at `/settings/account → API tokens` (shown exactly once). Then:
 ```bash
 TOKEN=utk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+# Read
 curl -s -H "Authorization: Bearer $TOKEN" https://uptime.example.com/api/v1/sites | jq
 curl -s -H "Authorization: Bearer $TOKEN" https://uptime.example.com/api/v1/sites/123 | jq
+
+# Write
 curl -s -H "Authorization: Bearer $TOKEN" -X POST https://uptime.example.com/api/v1/sites/123/check-now
+curl -s -H "Authorization: Bearer $TOKEN" -X POST https://uptime.example.com/api/v1/sites/123/pause
+curl -s -H "Authorization: Bearer $TOKEN" -X DELETE https://uptime.example.com/api/v1/sites/123
 ```
 
-Tokens inherit the creator's ACL — a viewer's token can only read monitors they have access to, and write actions require both the `write` scope **and** `manage` permission on the target monitor.
+### Create monitors via API (all 7 types)
+
+`POST /api/v1/sites` accepts a JSON body. The request shape mirrors the form fields, so anything you can build in the UI you can build via the API. Required scope: `write`. Required role: `admin` or `editor`. Returns **201** + the freshly-loaded site DTO.
+
+```bash
+# HTTP monitor with body-string assertion + custom headers + double-verify
+curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -X POST https://uptime.example.com/api/v1/sites -d '{
+    "name": "API",
+    "monitor_type": "active",
+    "url": "https://api.example.com/health",
+    "method": "GET",
+    "interval_seconds": 60,
+    "timeout_ms": 5000,
+    "check_type": "string",
+    "expected_string": "\"ok\":true",
+    "failure_threshold": 2,
+    "double_verify": true,
+    "request_headers": {"User-Agent":"uptime","X-Trace":"on"}
+  }'
+
+# TLS certificate expiry monitor
+curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -X POST .../api/v1/sites -d '{"name":"API cert","monitor_type":"cert","cert_host":"api.example.com","cert_port":443,"cert_expiry_warn_days":30}'
+
+# TCP socket monitor
+curl -s -X POST .../api/v1/sites -d '{"name":"Redis","monitor_type":"tcp","tcp_host":"10.0.0.5","tcp_port":6379}'
+
+# ICMP ping monitor
+curl -s -X POST .../api/v1/sites -d '{"name":"Edge","monitor_type":"ping","ping_host":"1.1.1.1","ping_count":3}'
+
+# DNS record monitor
+curl -s -X POST .../api/v1/sites -d '{"name":"DNS A","monitor_type":"dns","dns_query":"example.com","dns_record_type":"A","dns_expected":"93.184.216.34"}'
+
+# Domain WHOIS / RDAP expiry monitor
+curl -s -X POST .../api/v1/sites -d '{"name":"example.com expiry","monitor_type":"domain","whois_domain":"example.com","domain_expiry_warn_days":30}'
+
+# Passive heartbeat monitor (server auto-generates heartbeat_token in the response)
+curl -s -X POST .../api/v1/sites -d '{"name":"Nightly job","monitor_type":"heartbeat","heartbeat_grace_seconds":300}'
+```
+
+### Partial updates
+
+`PATCH /api/v1/sites/:id` merges the JSON body over the existing row, so you can flip one field without resending the entire monitor:
+
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -X PATCH .../api/v1/sites/123 -d '{"paused": true}'
+
+curl -s -X PATCH .../api/v1/sites/123 -d '{"interval_seconds": 120, "failure_threshold": 3, "double_verify": true}'
+
+# Re-bind notification channels (omit the field to leave channels untouched)
+curl -s -X PATCH .../api/v1/sites/123 -d '{"channel_ids": [4, 7]}'
+```
+
+Validation is strict — unknown enum values, missing required fields per monitor type, and malformed `request_headers` all return **400 {"error","details":[…]}**. Tokens inherit the creator's ACL — a viewer's token can only read monitors they have access to, write actions require both the `write` scope **and** `manage` permission on the target monitor, and `POST /api/v1/sites` additionally requires `admin` or `editor` role.
 
 Scrape config for Prometheus:
 
