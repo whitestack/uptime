@@ -853,6 +853,72 @@ pre {
   min-height: 220px;
 }
 
+/* ===========================================================
+   Monitor create/edit form: section headers + collapsibles
+   =========================================================== */
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.form-section-title > .ti {
+  font-size: 1.15rem;
+  color: var(--tblr-primary, #4263eb);
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+#site-form .card-subtitle {
+  margin-top: -0.15rem;
+}
+
+/* Collapsible "Advanced options" block, reused inside any section. */
+details.form-advanced {
+  border: 1px solid var(--tblr-border-color, rgba(101, 109, 119, 0.18));
+  border-radius: 0.5rem;
+  margin-top: 1.1rem;
+  background: var(--tblr-bg-surface-secondary, rgba(120, 130, 140, 0.035));
+  overflow: hidden;
+}
+details.form-advanced > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+  font-weight: 500;
+}
+details.form-advanced > summary::-webkit-details-marker { display: none; }
+details.form-advanced > summary > .ti:first-child {
+  font-size: 1.05rem;
+  color: var(--tblr-secondary-color, #8a96a3);
+}
+details.form-advanced > summary::after {
+  content: '\25BE';
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--tblr-secondary-color, #8a96a3);
+  transition: transform 0.15s ease;
+}
+details.form-advanced[open] > summary::after { transform: rotate(180deg); }
+details.form-advanced[open] > summary {
+  border-bottom: 1px solid var(--tblr-border-color, rgba(101, 109, 119, 0.18));
+}
+details.form-advanced > .form-advanced-body {
+  padding: 1.1rem 1rem 0.4rem;
+}
+details.form-advanced > .form-advanced-body > .card-title:first-child {
+  margin-top: 0 !important;
+}
+
+/* Behavior toggle rows: a touch of breathing room + a divider feel. */
+.form-behavior-row + .form-behavior-row {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tblr-border-color, rgba(101, 109, 119, 0.14));
+}
+
 @media (max-width: 575.98px) {
   .backup-card .card-footer .btn { width: 100%; }
   .monitor-picker .input-icon + .btn { flex: 1 1 auto; }

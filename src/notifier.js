@@ -30,8 +30,8 @@ async function fire(site, event, payload) {
   await channels.notifySite(site, event, payload);
 }
 
-async function notifyDown(site, error) {
-  await fire(site, 'down', { error });
+async function notifyDown(site, error, extra = {}) {
+  await fire(site, 'down', { error, ...extra });
 }
 
 async function notifyRecovered(site, durationSeconds) {

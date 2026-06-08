@@ -13,7 +13,7 @@
 
 <form method="post" action="<%= formAction %>" class="card" id="site-form">
   <div class="card-body">
-    <h3 class="card-title">Basics</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-adjustments-horizontal"></i> Basics</h3>
     <div class="row g-3">
       <div class="col-md-6">
         <label class="form-label required">Name</label>
@@ -35,7 +35,7 @@
   </div>
 
   <div class="card-body border-top" data-section="active" <%= (site.monitor_type && site.monitor_type !== 'active') ? 'hidden' : '' %>>
-    <h3 class="card-title">HTTP probe</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-world"></i> HTTP probe</h3>
     <div class="row g-3">
       <div class="col-md-9">
         <label class="form-label required">URL</label>
@@ -105,7 +105,11 @@
       </div>
     </div>
 
-    <h4 class="card-title mt-4">Cloudflare & headers</h4>
+    <% var hasAdvancedHttp = (site.auth_type && site.auth_type !== 'none') || site.request_headers_str || site.request_body || site.cloudflare_mode || site.skip_tls_verify || site.max_response_time_ms; %>
+    <details class="form-advanced"<%= hasAdvancedHttp ? ' open' : '' %>>
+      <summary><i class="ti ti-adjustments-alt"></i> Advanced HTTP options <span class="text-secondary small fw-normal ms-1">headers · body · auth · TLS · cert alerts</span></summary>
+      <div class="form-advanced-body">
+    <h4 class="card-title">Cloudflare & headers</h4>
     <div class="row g-3">
       <div class="col-12">
         <label class="form-check form-switch">
@@ -228,10 +232,12 @@
         </div>
       <% } %>
     </div>
+      </div>
+    </details>
   </div>
 
   <div class="card-body border-top" data-section="cert" <%= site.monitor_type !== 'cert' ? 'hidden' : '' %>>
-    <h3 class="card-title">TLS certificate monitor</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-certificate"></i> TLS certificate monitor</h3>
     <p class="card-subtitle text-secondary mb-3">Opens a TLS handshake against host:port and reports cert health. No HTTP request is made — useful for SMTPS / IMAPS / FTPS / custom ports.</p>
     <div class="row g-3">
       <div class="col-md-8">
@@ -262,7 +268,7 @@
   </div>
 
   <div class="card-body border-top" data-section="domain" <%= site.monitor_type !== 'domain' ? 'hidden' : '' %>>
-    <h3 class="card-title">Domain expiry monitor</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-calendar-event"></i> Domain expiry monitor</h3>
     <p class="card-subtitle text-secondary mb-3">
       Looks up the registered domain via RDAP (preferred) then WHOIS, parses the expiry date, and
       alerts when it gets close. Registry data changes once a year and registries rate-limit hard,
@@ -312,7 +318,7 @@
   </div>
 
   <div class="card-body border-top" data-section="tcp" <%= site.monitor_type !== 'tcp' ? 'hidden' : '' %>>
-    <h3 class="card-title">TCP probe</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-plug"></i> TCP probe</h3>
     <p class="card-subtitle text-secondary mb-3">Opens a raw TCP connection to host:port. Optionally waits for a banner substring (SSH/SMTP/IMAP/etc.).</p>
     <div class="row g-3">
       <div class="col-md-8">
@@ -350,7 +356,7 @@
   </div>
 
   <div class="card-body border-top" data-section="ping" <%= site.monitor_type !== 'ping' ? 'hidden' : '' %>>
-    <h3 class="card-title">ICMP ping</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-activity-heartbeat"></i> ICMP ping</h3>
     <p class="card-subtitle text-secondary mb-3">Sends ICMP echo packets via the system <code>ping</code> binary. Most useful for routers, switches and LAN hosts.</p>
     <div class="row g-3">
       <div class="col-md-8">
@@ -382,7 +388,7 @@
   </div>
 
   <div class="card-body border-top" data-section="dns" <%= site.monitor_type !== 'dns' ? 'hidden' : '' %>>
-    <h3 class="card-title">DNS record monitor</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-server-2"></i> DNS record monitor</h3>
     <p class="card-subtitle text-secondary mb-3">Resolves a record and (optionally) asserts the answer contains a substring or matches a regex.</p>
     <div class="row g-3">
       <div class="col-md-7">
@@ -428,7 +434,7 @@
   </div>
 
   <div class="card-body border-top" data-section="heartbeat" <%= site.monitor_type !== 'heartbeat' ? 'hidden' : '' %>>
-    <h3 class="card-title">Heartbeat parameters</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-heartbeat"></i> Heartbeat parameters</h3>
     <div class="row g-3">
       <div class="col-md-3">
         <label class="form-label">Schedule type</label>
@@ -518,29 +524,63 @@
   </div>
 
   <div class="card-body border-top">
-    <h3 class="card-title">Notes &amp; alert mute</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-bell-cog"></i> Behavior &amp; alerting</h3>
+    <div class="form-behavior-row">
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="paused" value="1" <%= site.paused ? 'checked' : '' %>>
+        <span class="form-check-label">Paused</span>
+      </label>
+      <div class="form-hint">Stops scheduled checks (and accepted heartbeats) without deleting the monitor.</div>
+    </div>
+    <div class="form-behavior-row">
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="mute_notifications" value="1"
+               <%= site.mute_notifications ? 'checked' : '' %>>
+        <span class="form-check-label">Mute alerts</span>
+      </label>
+      <div class="form-hint">Probe still runs and incidents still open. Useful for noisy monitors during triage.</div>
+    </div>
+    <div class="form-behavior-row" data-double-verify-row<%= site.monitor_type === 'heartbeat' ? ' hidden' : '' %>>
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="double_verify" value="1" <%= site.double_verify ? 'checked' : '' %>>
+        <span class="form-check-label">Double-verify on failure</span>
+      </label>
+      <div class="form-hint">
+        When a check fails, retry once 2 seconds later before counting the failure.
+        Avoids false alerts from transient packet loss, DNS hiccups, or upstream blips.
+        Doesn't apply to heartbeats (the service pings us).
+      </div>
+    </div>
+    <div class="form-behavior-row">
+      <label class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="renotify" value="1" data-renotify-toggle <%= site.renotify ? 'checked' : '' %>>
+        <span class="form-check-label">Repeat notifications while down</span>
+      </label>
+      <div class="form-hint">Resend the down alert on an interval until the monitor recovers, so a missed first alert doesn't mean silence.</div>
+      <div class="mt-2" data-renotify-interval<%= site.renotify ? '' : ' hidden' %>>
+        <label class="form-label">Reminder interval (minutes)</label>
+        <input type="number" class="form-control" name="renotify_interval_minutes" min="1" max="10080"
+               value="<%= site.renotify_interval_minutes || 60 %>" style="max-width: 160px;">
+        <div class="form-hint">Between 1 and 10080 (7 days). Default 60.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body border-top">
+    <h3 class="card-title form-section-title"><i class="ti ti-note"></i> Notes</h3>
     <div class="row g-3">
-      <div class="col-md-8">
+      <div class="col-12">
         <label class="form-label">Notes (optional)</label>
         <textarea name="notes" class="form-control" rows="3" maxlength="16384"
                   placeholder="Anything useful to operators — runbook URL, owner, dependencies, …"><%= site.notes || '' %></textarea>
         <div class="form-hint">Shown on the monitor detail page. Plain text, up to 16 KB.</div>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label d-block">Notifications</label>
-        <label class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" name="mute_notifications" value="1"
-                 <%= site.mute_notifications ? 'checked' : '' %>>
-          <span class="form-check-label">Mute alerts</span>
-        </label>
-        <div class="form-hint">Probe still runs and incidents still open. Useful for noisy monitors during triage.</div>
       </div>
     </div>
   </div>
 
   <div class="card-body border-top">
     <h3 class="card-title d-flex align-items-center">
-      <span>Notification channels</span>
+      <span class="form-section-title"><i class="ti ti-bell"></i> Notification channels</span>
       <a href="/channels" target="_blank" rel="noopener" class="ms-auto small text-secondary text-decoration-none">
         <i class="ti ti-external-link me-1"></i> Manage channels
       </a>
@@ -581,29 +621,11 @@
         <% }); %>
       </div>
     <% } %>
-    <div class="mt-3">
-      <label class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" name="paused" value="1" <%= site.paused ? 'checked' : '' %>>
-        <span class="form-check-label">Paused</span>
-      </label>
-      <div class="form-hint">Stops scheduled checks (and accepted heartbeats) without deleting the monitor.</div>
-    </div>
-    <div class="mt-3" data-double-verify-row<%= site.monitor_type === 'heartbeat' ? ' hidden' : '' %>>
-      <label class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" name="double_verify" value="1" <%= site.double_verify ? 'checked' : '' %>>
-        <span class="form-check-label">Double-verify on failure</span>
-      </label>
-      <div class="form-hint">
-        When a check fails, retry once 2 seconds later before counting the failure.
-        Avoids false alerts from transient packet loss, DNS hiccups, or upstream blips.
-        Doesn't apply to heartbeats (the service pings us).
-      </div>
-    </div>
   </div>
 
   <div class="card-body border-top">
     <h3 class="card-title d-flex align-items-center">
-      <span>Tags</span>
+      <span class="form-section-title"><i class="ti ti-tags"></i> Tags</span>
       <a href="/settings/tags" target="_blank" rel="noopener" class="ms-auto small text-secondary text-decoration-none">
         <i class="ti ti-external-link me-1"></i> Manage tags
       </a>
@@ -628,7 +650,7 @@
 
   <% if (typeof isAdmin !== 'undefined' && isAdmin) { %>
     <div class="card-body border-top">
-      <h3 class="card-title">Ownership</h3>
+      <h3 class="card-title form-section-title"><i class="ti ti-user-shield"></i> Ownership</h3>
       <p class="card-subtitle text-secondary mb-3">
         Owners always have manage permission on their monitors. Non-admin users can only see monitors they own or were granted.
       </p>
@@ -652,7 +674,7 @@
   <% } %>
 
   <div class="card-body border-top">
-    <h3 class="card-title">Public status page</h3>
+    <h3 class="card-title form-section-title"><i class="ti ti-broadcast"></i> Public status page</h3>
     <p class="card-subtitle text-secondary mb-3">Controls how this monitor appears on the read-only <code>/status</code> page.</p>
     <div class="row g-3">
       <div class="col-md-6">

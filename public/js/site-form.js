@@ -25,9 +25,22 @@
     });
   }
 
+  function syncRenotify() {
+    var toggle = document.querySelector('[data-renotify-toggle]');
+    var row = document.querySelector('[data-renotify-interval]');
+    if (!toggle || !row) return;
+    row.hidden = !toggle.checked;
+  }
+
   if (monitorType) {
     monitorType.addEventListener('change', syncSection);
     syncSection();
+  }
+
+  var renotifyToggle = document.querySelector('[data-renotify-toggle]');
+  if (renotifyToggle) {
+    renotifyToggle.addEventListener('change', syncRenotify);
+    syncRenotify();
   }
   if (checkType) {
     checkType.addEventListener('change', syncCheckType);

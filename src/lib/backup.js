@@ -5,20 +5,39 @@ const db = require('../db');
 const channels = require('./channels');
 const monitor = require('../monitor');
 const logger = require('../logger');
+const sitePayload = require('./sitePayload');
 
 const BACKUP_VERSION = 1;
 const BACKUP_APP = 'uptime';
 
+// Round-trip the full monitor configuration for every monitor type. Excludes
+// runtime state (current_state, last_*, *_alerted_*) and identity (id, owner,
+// timestamps) — a backup captures config, not history.
 const SITE_EXPORT_FIELDS = [
   'name', 'url', 'monitor_type', 'method', 'interval_seconds', 'timeout_ms',
   'check_type', 'expected_status', 'expected_string', 'json_path', 'expected_json_value',
   'request_headers', 'failure_threshold', 'heartbeat_token', 'heartbeat_grace_seconds',
-  'cloudflare_mode', 'paused', 'double_verify',
+  'cloudflare_mode', 'paused', 'double_verify', 'renotify', 'renotify_interval_minutes',
+  'display_name', 'status_page_group', 'status_page_excluded', 'status_page_order',
+  'cert_expiry_warn_days', 'cert_host', 'cert_port',
+  'tcp_host', 'tcp_port', 'ping_host', 'ping_count',
+  'dns_query', 'dns_record_type', 'dns_resolver', 'dns_expected',
+  'whois_domain', 'domain_expiry_warn_days',
+  'heartbeat_schedule_kind', 'heartbeat_cron', 'heartbeat_timezone',
+  'request_body', 'request_body_type',
+  'auth_type', 'auth_username', 'auth_password', 'auth_token',
+  'follow_redirects', 'skip_tls_verify', 'max_response_time_ms',
+  'notes', 'mute_notifications',
 ];
 
-const VALID_MONITOR_TYPES = ['active', 'heartbeat'];
-const VALID_CHECK_TYPES = ['status', 'string', 'json'];
-const VALID_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+const SITE_BOOL_FIELDS = new Set([
+  'cloudflare_mode', 'paused', 'double_verify', 'renotify',
+  'status_page_excluded', 'follow_redirects', 'skip_tls_verify', 'mute_notifications',
+]);
+
+const VALID_MONITOR_TYPES = sitePayload.VALID_MONITOR_TYPES;
+const VALID_CHECK_TYPES = sitePayload.VALID_CHECK_TYPES;
+const VALID_METHODS = sitePayload.VALID_METHODS;
 const VALID_CHANNEL_TYPES = channels.CHANNEL_TYPES;
 const VALID_CONFLICT = ['skip', 'replace', 'rename'];
 
@@ -32,7 +51,7 @@ function normalizeSiteRow(row) {
       }
       if (!v || typeof v !== 'object' || Array.isArray(v)) v = null;
     }
-    if (f === 'cloudflare_mode' || f === 'paused' || f === 'double_verify') v = v ? 1 : 0;
+    if (SITE_BOOL_FIELDS.has(f)) v = v ? 1 : 0;
     if (v === undefined) v = null;
     out[f] = v;
   }
@@ -163,53 +182,31 @@ function sanitizeImportSite(raw) {
   const name = String(raw.name || '').trim();
   if (!name) throw new Error('monitor missing name');
 
-  const monitor_type = VALID_MONITOR_TYPES.includes(raw.monitor_type) ? raw.monitor_type : 'active';
-  const method_raw = String(raw.method || 'GET').toUpperCase();
-  const method = VALID_METHODS.includes(method_raw) ? method_raw : 'GET';
-  const check_type_raw = raw.check_type;
-  const check_type = monitor_type === 'active'
-    ? (VALID_CHECK_TYPES.includes(check_type_raw) ? check_type_raw : 'status')
-    : null;
+  // Normalize through the shared payload builder so every monitor type (and
+  // every type-specific field) is handled identically to the UI / API. The
+  // only field-name mismatch is the TCP banner: it lives in the
+  // `expected_string` column on export but buildPayload reads `expected_banner`.
+  const body = { ...raw };
+  if (body.monitor_type === 'tcp' && body.expected_banner == null && body.expected_string != null) {
+    body.expected_banner = body.expected_string;
+  }
 
-  let request_headers = raw.request_headers;
-  if (typeof request_headers === 'string') {
-    try { request_headers = JSON.parse(request_headers); } catch { request_headers = null; }
-  }
-  if (request_headers && (typeof request_headers !== 'object' || Array.isArray(request_headers))) {
-    request_headers = null;
-  }
+  const data = sitePayload.buildPayload(body);
+  data.name = name;
 
   const channelNames = Array.isArray(raw.channels)
     ? raw.channels.map((s) => String(s || '').trim()).filter(Boolean)
     : [];
+  data.channels = channelNames;
 
-  return {
-    name,
-    url: monitor_type === 'active' ? String(raw.url || '').trim() : '',
-    monitor_type,
-    method,
-    interval_seconds: Math.max(10, parseInt(raw.interval_seconds, 10) || 60),
-    timeout_ms: Math.max(1000, parseInt(raw.timeout_ms, 10) || 10000),
-    check_type,
-    expected_status: monitor_type === 'active' && check_type === 'status'
-      ? String(raw.expected_status || '200').trim() : null,
-    expected_string: monitor_type === 'active' && check_type === 'string'
-      ? (raw.expected_string == null ? '' : String(raw.expected_string)) : null,
-    json_path: monitor_type === 'active' && check_type === 'json'
-      ? String(raw.json_path || '').trim() : null,
-    expected_json_value: monitor_type === 'active' && check_type === 'json'
-      ? (raw.expected_json_value == null ? '' : String(raw.expected_json_value)) : null,
-    request_headers: monitor_type === 'active' ? request_headers : null,
-    failure_threshold: Math.max(1, parseInt(raw.failure_threshold, 10) || 1),
-    heartbeat_token: monitor_type === 'heartbeat'
-      ? (typeof raw.heartbeat_token === 'string' && /^[a-f0-9]{16,64}$/i.test(raw.heartbeat_token) ? raw.heartbeat_token : null)
-      : null,
-    heartbeat_grace_seconds: Math.max(5, parseInt(raw.heartbeat_grace_seconds, 10) || 60),
-    cloudflare_mode: raw.cloudflare_mode ? 1 : 0,
-    paused: raw.paused ? 1 : 0,
-    double_verify: raw.double_verify ? 1 : 0,
-    channels: channelNames,
-  };
+  // Preserve a valid heartbeat token so ping URLs survive a restore.
+  data.heartbeat_token = (data.monitor_type === 'heartbeat'
+    && typeof raw.heartbeat_token === 'string'
+    && /^[a-f0-9]{16,64}$/i.test(raw.heartbeat_token))
+    ? raw.heartbeat_token
+    : null;
+
+  return data;
 }
 
 function sanitizeImportChannel(raw) {
@@ -265,69 +262,20 @@ async function findSiteByName(name) {
   return rows[0] || null;
 }
 
+// Both insert + update delegate to the shared sitePayload persistence so the
+// full column set (all monitor types) is written from one place. We forward
+// the backup's heartbeat token so restored heartbeats keep their ping URLs.
 async function insertSite(data, channelIds) {
-  let token = data.heartbeat_token;
-  if (data.monitor_type === 'heartbeat') {
-    if (token) {
-      const conflict = await db.query('SELECT id FROM sites WHERE heartbeat_token = ? LIMIT 1', [token]);
-      if (conflict.length) token = crypto.randomBytes(16).toString('hex');
-    } else {
-      token = crypto.randomBytes(16).toString('hex');
-    }
-  } else {
-    token = null;
-  }
-  const result = await db.query(
-    `INSERT INTO sites
-       (name, url, monitor_type, method, interval_seconds, timeout_ms,
-        check_type, expected_status, expected_string, json_path, expected_json_value,
-        request_headers, failure_threshold, heartbeat_token, heartbeat_grace_seconds,
-        cloudflare_mode, paused, double_verify)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.name, data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
-      data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
-      data.request_headers ? JSON.stringify(data.request_headers) : null,
-      data.failure_threshold, token, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused, data.double_verify,
-    ]
-  );
-  const id = Number(result.insertId);
-  await channels.setSiteChannels(id, channelIds);
-  return id;
+  const { id } = await sitePayload.insertSite(data, {
+    channelIds,
+    heartbeatToken: data.heartbeat_token || null,
+  });
+  return Number(id);
 }
 
 async function updateSiteRow(id, data, channelIds) {
-  await db.query(
-    `UPDATE sites SET
-       url=?, monitor_type=?, method=?, interval_seconds=?, timeout_ms=?,
-       check_type=?, expected_status=?, expected_string=?, json_path=?, expected_json_value=?,
-       request_headers=?, failure_threshold=?, heartbeat_grace_seconds=?,
-       cloudflare_mode=?, paused=?, double_verify=?
-     WHERE id=?`,
-    [
-      data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
-      data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
-      data.request_headers ? JSON.stringify(data.request_headers) : null,
-      data.failure_threshold, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused, data.double_verify, id,
-    ]
-  );
-  if (data.monitor_type === 'heartbeat') {
-    const cur = await db.query('SELECT heartbeat_token FROM sites WHERE id = ?', [id]);
-    if (!cur[0]?.heartbeat_token) {
-      let token = data.heartbeat_token;
-      if (token) {
-        const conflict = await db.query('SELECT id FROM sites WHERE heartbeat_token = ? AND id <> ? LIMIT 1', [token, id]);
-        if (conflict.length) token = crypto.randomBytes(16).toString('hex');
-      } else {
-        token = crypto.randomBytes(16).toString('hex');
-      }
-      await db.query('UPDATE sites SET heartbeat_token = ? WHERE id = ?', [token, id]);
-    }
-  }
-  await channels.setSiteChannels(id, channelIds);
-  return id;
+  await sitePayload.updateSite(id, data, { channelIds });
+  return Number(id);
 }
 
 async function importChannels(items, conflict, log) {

@@ -93,6 +93,9 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 | **Passive heartbeats (cron)**| Yes (start/success/fail + cron schedule + body capture) | Yes (basic) | **Yes (best in class)** | No | No | Yes | Yes |
 | **Cloudflare-aware probing** | **Yes (UA rotation, challenge detection, adaptive backoff)** | No | No | No | No | — | No |
 | **Double-verify on failure (per monitor)** | **Yes (2-second retry, applies to every active probe type)** | No (interval/threshold only) | No (threshold only) | No | No | Yes (Uptime Robot calls it "Confirmation") | No |
+| **Repeat / re-notify while down (per monitor)** | **Yes (toggle + interval, 1 min – 7 days)** | Yes | No | No | No | Yes | Yes |
+| **Embeddable status / uptime badges (SVG)** | **Yes (public, shields-style, per monitor)** | No | Yes | No | No | Yes | No |
+| **Clone / duplicate a monitor** | **Yes (one click, copies channels + tags)** | No | No | No (config-as-code) | No | Yes | Yes |
 | **Status assertions**        | Status / body-string / JSON path / regex / response-time | Status / keyword | Pass/fail token | YAML conditions | Status / contains | Status / keyword | Status |
 | **Notification channels**    | **10** (Discord, Slack, Telegram, Ntfy, Gotify, Pushover, Mattermost, Teams, email, webhook) | 90+ | 30+ | Most via shoutrrr | 13 | 20+ | Many |
 | **Per-event message templates** | Yes (`{{placeholders}}`, reset-to-default) | Limited | Yes | Yes | No | Yes | Yes |
@@ -101,7 +104,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 | **Tags + bulk actions**      | Yes (coloured tags, multi-select toolbar) | Tags | Limited | No | Tags | Tags | Yes |
 | **REST API**                 | Yes (read / write scopes, per-token) | Limited | Yes | Read-only | Yes | Yes | Yes |
 | **Prometheus `/metrics`**    | Yes (built-in)        | No (via plugin) | Yes              | Yes             | No             | No              | Yes             |
-| **Backup / restore (JSON)**  | Yes (selective, conflict strategy) | Yes | Yes | Config-as-code | Yes | No | Limited |
+| **Backup / restore (JSON)**  | Yes (all 7 monitor types, selective, conflict strategy) | Yes | Yes | Config-as-code | Yes | No | Limited |
 | **2FA (TOTP) per user**      | Yes (RFC 6238 + recovery codes) | Yes | Yes | No | No | Yes | Yes |
 | **Multi-user with RBAC + per-monitor ACLs** | **Yes (admin/editor/viewer + view/manage grants)** | Coming | Teams only | No | Limited | Yes | Yes |
 | **Audit log**                | Yes (per actor)       | No              | No               | No              | No             | Yes             | Yes             |
@@ -156,6 +159,7 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 - **Multi-channel fan-out** — attach any number of channels per monitor. Each channel is independently configured.
 - **10 channel types**: Discord (rich embeds), Slack, Telegram, Ntfy.sh, Gotify, Pushover, Mattermost, Microsoft Teams (adaptive cards), Email (SMTP), Generic webhook.
 - **Custom message templates per event** — DOWN / RECOVERED / CHALLENGED / CERT_EXPIRING / DOMAIN_EXPIRING / TEST each have their own title and body with `{{placeholders}}` like `{{site_name}}`, `{{site_url}}`, `{{error}}`, `{{status_code}}`, `{{duration_human}}`, `{{cert_days_remaining}}`, `{{domain}}`, `{{domain_days_remaining}}`, `{{domain_expires_at}}`, `{{domain_registrar}}`, `{{timestamp}}`. One-click reset-to-default per template.
+- **Repeat notifications while down (per monitor)** — opt-in reminder cadence. When a monitor stays DOWN, the alert is re-sent every _N_ minutes (configurable, 1 minute – 7 days) until it recovers, so a missed first alert doesn't mean silence until resolution. Self-throttling and restart-safe (the cadence is tracked in the DB, evaluated server-side), works for both active probes and passive heartbeats.
 - **Maintenance windows** suppress alerts globally or per monitor on a cron schedule or one-off range — events still log as `suppressed_by_maintenance`.
 - **Test send** button on every channel for instant verification.
 - `APP_DEBUG=true` switches every channel into dry-run mode — the would-be payload is logged instead of sent.
@@ -169,6 +173,8 @@ If you want a **lightweight self-hosted Uptime Kuma alternative** that you can `
 - **Per-monitor detail page** with 24h / 7d / 30d uptime %, P95 / min / max response times, response-time chart (Chart.js, 24h / 7d / 30d ranges), recent checks log, incident timeline, heartbeat ping log, and notes block.
 - **Active maintenance banner** whenever any window is currently silencing alerts.
 - **Delete from listing** — hover any card to reveal an inline trash button with a confirm modal.
+- **Clone / duplicate a monitor** — one click on any monitor copies its full configuration (every type-specific field), attached notification channels, and tags into a new `… (copy)` monitor, then drops you on its edit page to tweak. Heartbeats get a fresh ping token; history and incidents are not copied.
+- **Embeddable SVG status badges** — every monitor exposes public, shields.io-style badges at `/badge/:id/status.svg` (up / down / paused) and `/badge/:id/uptime.svg` (uptime %, colour-graded). Append `?hours=720` for a 30-day uptime window or `?label=API` to rename a badge. The detail page shows ready-to-paste Markdown snippets. Perfect for READMEs and status wikis.
 - Mobile-responsive — action buttons stack, badges wrap, tested on small screens.
 
 ### Public status page
