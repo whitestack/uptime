@@ -108,6 +108,8 @@ function siteToApi(s) {
     cloudflare_mode: !!s.cloudflare_mode,
     paused: !!s.paused,
     double_verify: !!s.double_verify,
+    renotify: !!s.renotify,
+    renotify_interval_minutes: s.renotify_interval_minutes,
     current_state: s.current_state,
     last_checked_at: s.last_checked_at || null,
     last_heartbeat_at: s.last_heartbeat_at || null,

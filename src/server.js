@@ -89,6 +89,7 @@ async function main() {
   app.use(require('./routes/branding'));
   app.use(require('./routes/ping'));
   app.use(require('./routes/status'));
+  app.use(require('./routes/badge'));
   app.use(require('./routes/api'));
 
   app.use(sessionMiddleware());

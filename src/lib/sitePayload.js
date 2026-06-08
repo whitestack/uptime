@@ -87,6 +87,12 @@ function buildPayload(body) {
   const cloudflare_mode = coerceBool(body.cloudflare_mode);
   const paused = coerceBool(body.paused);
   const double_verify = coerceBool(body.double_verify);
+  const renotify = coerceBool(body.renotify);
+  const renotify_raw = parseInt(body.renotify_interval_minutes, 10);
+  // Clamp to [1, 10080] (1 minute .. 7 days); default 60.
+  const renotify_interval_minutes = Number.isFinite(renotify_raw) && renotify_raw > 0
+    ? Math.min(10080, renotify_raw)
+    : 60;
   const rawMethod = String(body.method || 'GET').toUpperCase();
   const method = VALID_METHODS.includes(rawMethod) ? rawMethod : 'GET';
   const check_type = VALID_CHECK_TYPES.includes(body.check_type) ? body.check_type : 'status';
@@ -227,6 +233,8 @@ function buildPayload(body) {
     cloudflare_mode,
     paused,
     double_verify,
+    renotify,
+    renotify_interval_minutes,
     display_name,
     status_page_group,
     status_page_excluded,
@@ -343,16 +351,25 @@ function validateForApi(data, rawBody) {
 
 // Insert a new site row + attach channels and tags. Returns the freshly-
 // loaded site row (with the heartbeat_token populated for heartbeats).
-async function insertSite(data, { channelIds = [], tagIds = [], ownerUserId = null } = {}) {
-  const heartbeat_token = data.monitor_type === 'heartbeat'
-    ? crypto.randomBytes(16).toString('hex')
-    : null;
+// `heartbeatToken` lets callers preserve a token (e.g. backup restore); when
+// omitted or invalid a fresh one is generated. Conflicting tokens are
+// regenerated so the column stays unique.
+async function insertSite(data, { channelIds = [], tagIds = [], ownerUserId = null, heartbeatToken = null } = {}) {
+  let heartbeat_token = null;
+  if (data.monitor_type === 'heartbeat') {
+    const valid = typeof heartbeatToken === 'string' && /^[a-f0-9]{16,64}$/i.test(heartbeatToken);
+    heartbeat_token = valid ? heartbeatToken : crypto.randomBytes(16).toString('hex');
+    if (valid) {
+      const conflict = await db.query('SELECT id FROM sites WHERE heartbeat_token = ? LIMIT 1', [heartbeat_token]);
+      if (conflict.length) heartbeat_token = crypto.randomBytes(16).toString('hex');
+    }
+  }
   const result = await db.query(
     `INSERT INTO sites
        (name, url, monitor_type, method, interval_seconds, timeout_ms,
         check_type, expected_status, expected_string, json_path, expected_json_value,
         request_headers, failure_threshold, heartbeat_token, heartbeat_grace_seconds,
-        cloudflare_mode, paused, double_verify,
+        cloudflare_mode, paused, double_verify, renotify, renotify_interval_minutes,
         display_name, status_page_group, status_page_excluded, status_page_order,
         cert_expiry_warn_days, cert_host, cert_port,
         tcp_host, tcp_port, ping_host, ping_count,
@@ -363,13 +380,13 @@ async function insertSite(data, { channelIds = [], tagIds = [], ownerUserId = nu
         auth_type, auth_username, auth_password, auth_token,
         follow_redirects, skip_tls_verify, max_response_time_ms,
         notes, mute_notifications, owner_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.name, data.url, data.monitor_type, data.method, data.interval_seconds, data.timeout_ms,
       data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
       data.request_headers ? JSON.stringify(data.request_headers) : null,
       data.failure_threshold, heartbeat_token, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused, data.double_verify,
+      data.cloudflare_mode, data.paused, data.double_verify, data.renotify, data.renotify_interval_minutes,
       data.display_name, data.status_page_group, data.status_page_excluded, data.status_page_order,
       data.cert_expiry_warn_days, data.cert_host, data.cert_port,
       data.tcp_host, data.tcp_port, data.ping_host, data.ping_count,
@@ -398,7 +415,7 @@ async function updateSite(id, data, { channelIds, tagIds, ownerUserId, ownerUser
        name=?, url=?, monitor_type=?, method=?, interval_seconds=?, timeout_ms=?,
        check_type=?, expected_status=?, expected_string=?, json_path=?, expected_json_value=?,
        request_headers=?, failure_threshold=?, heartbeat_grace_seconds=?,
-       cloudflare_mode=?, paused=?, double_verify=?,
+       cloudflare_mode=?, paused=?, double_verify=?, renotify=?, renotify_interval_minutes=?,
        display_name=?, status_page_group=?, status_page_excluded=?, status_page_order=?,
        cert_expiry_warn_days=?, cert_host=?, cert_port=?,
        tcp_host=?, tcp_port=?, ping_host=?, ping_count=?,
@@ -415,7 +432,7 @@ async function updateSite(id, data, { channelIds, tagIds, ownerUserId, ownerUser
       data.check_type, data.expected_status, data.expected_string, data.json_path, data.expected_json_value,
       data.request_headers ? JSON.stringify(data.request_headers) : null,
       data.failure_threshold, data.heartbeat_grace_seconds,
-      data.cloudflare_mode, data.paused, data.double_verify,
+      data.cloudflare_mode, data.paused, data.double_verify, data.renotify, data.renotify_interval_minutes,
       data.display_name, data.status_page_group, data.status_page_excluded, data.status_page_order,
       data.cert_expiry_warn_days, data.cert_host, data.cert_port,
       data.tcp_host, data.tcp_port, data.ping_host, data.ping_count,
@@ -457,6 +474,64 @@ async function updateSite(id, data, { channelIds, tagIds, ownerUserId, ownerUser
   return rows[0];
 }
 
+// Field set copied verbatim when duplicating a monitor. Excludes identity
+// (id, name), runtime state (current_state, last_*, *_alerted_*,
+// heartbeat_token), and ownership/timestamps — those are reset on the clone.
+const CLONE_FIELDS = [
+  'url', 'monitor_type', 'method', 'interval_seconds', 'timeout_ms',
+  'check_type', 'expected_status', 'expected_string', 'json_path', 'expected_json_value',
+  'request_headers', 'failure_threshold', 'heartbeat_grace_seconds',
+  'cloudflare_mode', 'paused', 'double_verify', 'renotify', 'renotify_interval_minutes',
+  'display_name', 'status_page_group', 'status_page_excluded', 'status_page_order',
+  'cert_expiry_warn_days', 'cert_host', 'cert_port',
+  'tcp_host', 'tcp_port', 'ping_host', 'ping_count',
+  'dns_query', 'dns_record_type', 'dns_resolver', 'dns_expected',
+  'whois_domain', 'domain_expiry_warn_days',
+  'heartbeat_schedule_kind', 'heartbeat_cron', 'heartbeat_timezone',
+  'request_body', 'request_body_type',
+  'auth_type', 'auth_username', 'auth_password', 'auth_token',
+  'follow_redirects', 'skip_tls_verify', 'max_response_time_ms',
+  'notes', 'mute_notifications',
+];
+
+// Find a unique "<base> (copy)" / "(copy 2)" … name so clones never collide.
+async function uniqueCopyName(base) {
+  const root = `${base} (copy)`;
+  let candidate = root;
+  let n = 2;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const rows = await db.query('SELECT id FROM sites WHERE name = ? LIMIT 1', [candidate]);
+    if (!rows.length) return candidate;
+    candidate = `${base} (copy ${n})`;
+    n += 1;
+  }
+}
+
+// Duplicate an existing monitor (config only — no history/incidents/state).
+// Channels and tags are copied. Heartbeat monitors get a brand-new token so
+// the clone has its own ping URL. Returns { id, site } like insertSite.
+async function cloneSite(sourceId, { ownerUserId = null } = {}) {
+  const rows = await db.query('SELECT * FROM sites WHERE id = ? LIMIT 1', [sourceId]);
+  const src = rows[0];
+  if (!src) throw new Error('source monitor not found');
+
+  const data = {};
+  for (const f of CLONE_FIELDS) data[f] = src[f] === undefined ? null : src[f];
+  // request_headers is stored as a JSON string; insertSite re-serializes, so
+  // hand it an object (or null) to avoid double-encoding.
+  if (typeof data.request_headers === 'string') {
+    try { data.request_headers = JSON.parse(data.request_headers); }
+    catch { data.request_headers = null; }
+  }
+  data.name = await uniqueCopyName(String(src.name || 'Monitor'));
+
+  const channelIds = await channels.listSiteChannelIds(sourceId);
+  const tagIds = (await tagsLib.listSiteTags(sourceId)).map((t) => Number(t.id));
+
+  return insertSite(data, { channelIds, tagIds, ownerUserId });
+}
+
 module.exports = {
   buildPayload,
   parseHeadersJson,
@@ -466,6 +541,7 @@ module.exports = {
   validateForApi,
   insertSite,
   updateSite,
+  cloneSite,
   VALID_MONITOR_TYPES,
   VALID_CHECK_TYPES,
   VALID_METHODS,

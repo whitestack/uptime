@@ -221,6 +221,18 @@
         <h3><span class="num">08</span> Per-monitor double-verify on failure</h3>
         <p>When a probe fails, retry it once 2 seconds later before counting the failure. If the retry succeeds, the monitor stays UP and no alert fires — that single dropped TCP packet, DNS hiccup, or upstream blip never wakes you up. If the retry also fails, the failure flows through <code>failure_threshold</code> exactly as before. Per-monitor toggle, applies to every active probe type (HTTP / TCP / ping / DNS / cert / domain), invisible to the dashboard when it works. Same idea as Uptime Robot's "Confirmation" feature — Uptime Kuma, Gatus, Statping, and Healthchecks all skip this.</p>
       </div>
+      <div class="unique-card">
+        <h3><span class="num">09</span> Repeat-notify while down, per monitor</h3>
+        <p>Outage alerts are easy to miss. Flip on re-notify for a monitor and the DOWN alert is re-sent on your chosen cadence (1 minute to 7 days) until it recovers. The schedule is tracked server-side in the DB, so it's restart-safe and self-throttling — and it works for passive heartbeats too, not just active probes.</p>
+      </div>
+      <div class="unique-card">
+        <h3><span class="num">10</span> Embeddable SVG status &amp; uptime badges</h3>
+        <p>Every monitor exposes public, shields.io-style badges at <code>/badge/:id/status.svg</code> and <code>/badge/:id/uptime.svg</code> — colour-graded, cache-friendly, no external service. Append <code>?hours=720</code> for a 30-day uptime window or <code>?label=API</code> to rename one. The detail page hands you ready-to-paste Markdown. Drop your live uptime straight into a README.</p>
+      </div>
+      <div class="unique-card">
+        <h3><span class="num">11</span> One-click clone &amp; full-fidelity backup</h3>
+        <p>Duplicate any monitor — every type-specific field, its notification channels, and its tags — in a single click. And JSON backup/restore now round-trips all seven monitor types (HTTP, heartbeat, TCP, ping, DNS, cert, domain) with every probe field intact, not just the basic two.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -322,6 +334,10 @@
           <tr><th>Heartbeats with cron + body capture</th>     <td class="us yes">Yes</td>    <td>Basic</td>     <td>Best in class</td>      <td>No</td>  <td>No</td>      <td>Yes</td></tr>
           <tr><th>Cloudflare-aware probing</th>                <td class="us yes">Yes</td>    <td>No</td>        <td>No</td>                 <td>No</td>  <td>No</td>      <td>—</td></tr>
           <tr><th>Double-verify on failure (per monitor)</th>  <td class="us yes">Yes (2s retry, all probe types)</td><td>No</td><td>No</td><td>No</td>  <td>No</td>      <td>Yes ("Confirmation")</td></tr>
+          <tr><th>Repeat / re-notify while down</th>           <td class="us yes">Yes (toggle + interval)</td><td>Yes</td><td>No</td>          <td>No</td>  <td>No</td>      <td>Yes</td></tr>
+          <tr><th>Embeddable SVG status / uptime badges</th>   <td class="us yes">Yes (public, per monitor)</td><td>No</td><td>Yes</td>         <td>No</td>  <td>No</td>      <td>Yes</td></tr>
+          <tr><th>Clone / duplicate a monitor</th>             <td class="us yes">Yes (1 click)</td><td>No</td>     <td>No</td>                 <td>No</td>  <td>No</td>      <td>Yes</td></tr>
+          <tr><th>Backup / restore (all monitor types)</th>    <td class="us yes">Yes (all 7 types)</td><td>Yes</td>  <td>Yes</td>                <td>Config-as-code</td><td>Yes</td><td>No</td></tr>
           <tr><th>Notification channels</th>                   <td class="us">10</td>        <td>90+</td>       <td>30+</td>                <td>Via shoutrrr</td><td>13</td><td>20+</td></tr>
           <tr><th>Public status page + RSS</th>                <td class="us yes">Yes</td>    <td>Yes</td>       <td>No</td>                 <td>Yes</td> <td>Yes</td>     <td>Yes</td></tr>
           <tr><th>Multi-user with per-monitor ACLs</th>        <td class="us yes">Yes</td>    <td>Coming</td>    <td>Teams only</td>         <td>No</td>  <td>Limited</td> <td>Yes</td></tr>

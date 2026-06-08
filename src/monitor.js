@@ -208,6 +208,39 @@ async function markDomainAlerted(site, days) {
   );
 }
 
+// Stamp the time of the most recent down alert (initial or reminder). Drives
+// the re-notification cadence. Cleared on recovery.
+async function markDownNotified(siteId) {
+  await db.query(`UPDATE sites SET last_down_notified_at = ${db.nowMs()} WHERE id = ?`, [siteId]);
+}
+
+async function clearDownNotified(siteId) {
+  await db.query(`UPDATE sites SET last_down_notified_at = NULL WHERE id = ?`, [siteId]);
+}
+
+// While a monitor stays DOWN and re-notification is enabled, resend the down
+// alert once `renotify_interval_minutes` has elapsed since the last alert.
+// Safe to call on every "still down" tick — it self-throttles on the stored
+// timestamp, so it survives restarts and works for both active + heartbeat.
+//
+// "Due?" is evaluated in SQL (not by comparing a DB timestamp to the JS
+// clock) because timestamps are stored/read in the DB's own timezone — mixing
+// in Date.now() would be off by the server's UTC offset.
+async function maybeReNotify(site, error) {
+  if (!site.renotify) return;
+  const intervalMin = Math.max(1, Number(site.renotify_interval_minutes) || 60);
+  const rows = await db.query(
+    `SELECT (last_down_notified_at IS NULL
+             OR ${db.diffSecondsSql('last_down_notified_at', db.nowMs())} >= ?) AS due
+       FROM sites WHERE id = ? LIMIT 1`,
+    [intervalMin * 60, site.id]
+  );
+  if (!rows.length || !Number(rows[0].due)) return;
+  logger.info({ siteId: site.id, intervalMin }, 'monitor.renotify');
+  await notifier.notifyDown(site, error || 'still down', { reminder: true });
+  await markDownNotified(site.id);
+}
+
 async function processResult(site, result) {
   const s = getState(site.id);
 
@@ -261,6 +294,7 @@ async function processResult(site, result) {
     s.lastError = null;
     if (s.lastResultIsUp === 0 || site.current_state === 'down') {
       const duration = await closeOpenIncident(site);
+      await clearDownNotified(site.id);
       logger.info({ siteId: site.id, durationSec: duration }, 'monitor.recovered');
       await notifier.notifyRecovered(site, duration);
     } else if (site.current_state !== 'up') {
@@ -279,10 +313,16 @@ async function processResult(site, result) {
     'monitor.failure'
   );
 
-  if (s.consecutiveFailures >= threshold && site.current_state !== 'down') {
-    await openIncident(site, result.errorMessage);
-    logger.warn({ siteId: site.id, error: result.errorMessage }, 'monitor.went_down');
-    await notifier.notifyDown(site, result.errorMessage);
+  if (s.consecutiveFailures >= threshold) {
+    if (site.current_state !== 'down') {
+      await openIncident(site, result.errorMessage);
+      logger.warn({ siteId: site.id, error: result.errorMessage }, 'monitor.went_down');
+      await notifier.notifyDown(site, result.errorMessage);
+      await markDownNotified(site.id);
+    } else {
+      // Already down — fire a reminder if re-notification is due.
+      await maybeReNotify(site, result.errorMessage);
+    }
   }
   s.lastResultIsUp = 0;
 }
@@ -504,6 +544,9 @@ async function watchdogTick() {
       const lastWasFailure = s.lastResultIsUp === 0;
       if (result.isUp === 0 && !lastWasFailure) {
         await processResult(site, result);
+      } else if (result.isUp === 0 && lastWasFailure) {
+        // Still missing its heartbeat — fire a reminder if one is due.
+        await maybeReNotify(site, result.errorMessage);
       } else if (result.isUp === 1 && s.lastResultIsUp === null) {
         s.lastResultIsUp = 1;
       }

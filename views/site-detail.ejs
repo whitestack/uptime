@@ -48,6 +48,13 @@
             <%= site.paused ? 'Resume' : 'Pause' %>
           </button>
         </form>
+        <% if (typeof user !== 'undefined' && user && (isAdmin || user.role === 'editor')) { %>
+          <form method="post" action="/sites/<%= site.id %>/clone" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary" title="Duplicate this monitor's configuration">
+              <i class="ti ti-copy me-1"></i> Clone
+            </button>
+          </form>
+        <% } %>
         <a href="/sites/<%= site.id %>/edit" class="btn btn-primary"><i class="ti ti-edit me-1"></i> Edit</a>
       <% } else { %>
         <span class="badge bg-secondary-lt"><i class="ti ti-eye me-1"></i>View only</span>
@@ -302,6 +309,30 @@ curl -fsS --data-binary @/tmp/job.log <%= publicBaseUrl %>/ping/<%= site.heartbe
       </div>
     </div>
   <% } %>
+<% } %>
+
+<% if (typeof canManage !== 'undefined' && canManage) {
+     var badgeBase = publicBaseUrl + '/badge/' + site.id;
+%>
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title"><i class="ti ti-shield-check me-1"></i> Status badges</h3>
+      <div class="card-actions text-secondary small">Public, embeddable SVG — drop into a README or status wiki.</div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="text-secondary small mb-1">Status badge <img src="<%= badgeBase %>/status.svg" alt="status badge" class="align-middle ms-1"></div>
+          <input type="text" class="form-control form-control-sm font-monospace" readonly onclick="this.select()" value="![status](<%= badgeBase %>/status.svg)">
+        </div>
+        <div class="col-md-6">
+          <div class="text-secondary small mb-1">Uptime badge (24h) <img src="<%= badgeBase %>/uptime.svg" alt="uptime badge" class="align-middle ms-1"></div>
+          <input type="text" class="form-control form-control-sm font-monospace" readonly onclick="this.select()" value="![uptime](<%= badgeBase %>/uptime.svg)">
+        </div>
+      </div>
+      <div class="text-secondary small mt-2">Tip: append <code>?hours=720</code> to the uptime badge for a 30-day window, or <code>?label=API</code> to rename either badge.</div>
+    </div>
+  </div>
 <% } %>
 
 <div class="row row-cards mb-3">

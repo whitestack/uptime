@@ -495,6 +495,31 @@ router.post('/sites/:id/check-now', acl.requireSiteManage, async (req, res, next
   }
 });
 
+// Duplicate a monitor's configuration into a new "(copy)" monitor. Requires
+// create rights (admin/editor) plus manage on the source. Channels + tags are
+// copied; history/incidents/state are not. The clone starts paused so it
+// doesn't immediately alert before the user reviews it.
+router.post('/sites/:id/clone', acl.requireRole('admin', 'editor'), acl.requireSiteManage, async (req, res, next) => {
+  try {
+    const srcId = req.site.id;
+    // Editors own their clones; admins inherit the source's owner.
+    const ownerUserId = acl.isAdmin(req.session.user)
+      ? (req.site.owner_user_id ?? null)
+      : (req.session.user?.id || null);
+    const { id, site } = await sitePayload.cloneSite(srcId, { ownerUserId });
+    audit.fromReq(req, 'site.cloned', {
+      targetType: 'site', targetId: id,
+      meta: { name: site.name, source_id: srcId },
+    });
+    logger.info({ siteId: id, sourceId: srcId, name: site.name }, 'sites.cloned');
+    await monitor.reloadSite(id);
+    req.flash('success', `Cloned to "${site.name}" — review and edit before use.`);
+    res.redirect(`/sites/${id}/edit`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/api/sites/:id/timeseries', acl.requireSiteSee, async (req, res, next) => {
   try {
     const id = req.site.id;

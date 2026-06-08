@@ -603,6 +603,16 @@ async function run() {
   // counts failures across separate scheduled cycles.
   await addColumn('sites', 'double_verify',             'INTEGER NOT NULL DEFAULT 0', 'TINYINT(1) NOT NULL DEFAULT 0');
 
+  // Phase 17 — Re-notification (reminders) for ongoing incidents.
+  // When `renotify` is 1 and a monitor stays DOWN, we resend the down alert
+  // every `renotify_interval_minutes` minutes until it recovers, so a missed
+  // first alert doesn't mean silence until resolution. `last_down_notified_at`
+  // tracks the timestamp of the most recent down alert (initial or reminder)
+  // and is cleared on recovery.
+  await addColumn('sites', 'renotify',                  'INTEGER NOT NULL DEFAULT 0', 'TINYINT(1) NOT NULL DEFAULT 0');
+  await addColumn('sites', 'renotify_interval_minutes', 'INTEGER NOT NULL DEFAULT 60','INT NOT NULL DEFAULT 60');
+  await addColumn('sites', 'last_down_notified_at',     'TEXT NULL',                  'DATETIME(3) NULL');
+
   // Binary uploads (logo / favicon). Stored inline rather than on disk so
   // backup/import is a single JSON file and there are no FS perms to worry
   // about. One row per `kind` ("logo" | "favicon"). updated_at drives the
